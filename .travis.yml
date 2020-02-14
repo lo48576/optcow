@@ -1,0 +1,63 @@
+language: rust
+cache:
+  directories:
+    - /home/travis/.cargo
+before_cache:
+  - rm -rf /home/travis/.cargo/registry
+rust:
+  - 1.41.0
+  - stable
+  - beta
+  - nightly
+env:
+  - FEATURES=
+  - FEATURES="--all-features"
+jobs:
+  include:
+    - name: "Format"
+      rust: 1.41.0
+      before_install:
+        - rustup component add rustfmt && cargo fmt --version
+      script:
+        # Fail if the code is not correctly formatted.
+        - cargo fmt --all -- --check
+    - name: "minimal versions, all features"
+      rust: 1.41.0
+      env: TEST_MINIMAL_VERSIONS=1 FEATURES="--all-features"
+    - name: "stable, minimal features"
+      rust: stable
+      env: FEATURES="--no-default-features"
+  exclude:
+    # To reduce bulids, omit beta with only default features.
+    - rust: beta
+      env: FEATURES=
+  allow_failures:
+    - rust: nightly
+before_install:
+  # For lint
+  - rustup component add clippy && cargo fmt --version
+  # For minimal versions test.
+  - |
+    if [ "${TEST_MINIMAL_VERSIONS:-0}" -ne 0 ] ; then
+        rustup install nightly
+    fi
+before_script:
+  # Use dependencies with minimal versions.
+  - |
+    if [ "${TEST_MINIMAL_VERSIONS:-0}" -ne 0 ] ; then
+        cargo +nightly update -Z minimal-versions
+    fi
+script:
+  # Fail if the code has warnings.
+  - cargo clippy ${FEATURES:-} -- --deny warnings
+  # Compile and run tests.
+  - cargo build --verbose --workspace ${FEATURES:-} && cargo test --verbose --workspace ${FEATURES:-}
+notifications:
+  email: false
+
+# Resources:
+#
+# * Official
+#     + [Build Matrix - Travis CI](https://docs.travis-ci.com/user/build-matrix/)
+# * Rust
+#     + [Beware the rust cache on Travis | Levans' workshop](https://levans.fr/rust_travis_cache.html)
